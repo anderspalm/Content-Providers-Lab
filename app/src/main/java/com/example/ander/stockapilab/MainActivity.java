@@ -17,6 +17,7 @@ import android.support.v4.widget.CursorAdapter;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Menu;
@@ -44,16 +45,18 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
+    CursorAdapter mAdapter;
+
     public static final String mNoQueryURL = "http://dev.markitondemand.com/MODApis/Api/v2/Lookup/json?input=";
     public static Uri mCONTENT_URI_Var;
-    ContentResolver mContentResolver;
     String mURI;
-    private EditText mInputQuery;
-    private TextView mStock_text1, mStock_text2, mStock_text3, mStock_text4;
     ListView mListView;
+    FloatingActionButton mFab;
+    NetworkInfo mNetworkInfo;
 
     String mQuantity;
 
+    private static final String TAG = "MainActivity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,19 +64,23 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mCONTENT_URI_Var = StockContract.Stocks.CONTENT_URI;
+        mListView = (ListView) findViewById(R.id.listView);
+        mFab = (FloatingActionButton) findViewById(R.id.fab);
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        mStock_text1 = (TextView) findViewById(R.id.stock_text1);
-        mStock_text2 = (TextView) findViewById(R.id.stock_text2);
-        mStock_text3 = (TextView) findViewById(R.id.stock_text3);
-        mStock_text4 = (TextView) findViewById(R.id.stock_text4);
-
-//        SimpleAdapter adapter = new SimpleAdapter()
+        // populating listView on Create
+        setInitialListView();
 
         ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        final NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
+        mNetworkInfo = connMgr.getActiveNetworkInfo();
 
-        fab.setOnClickListener(new View.OnClickListener() {
+        // calling the fab click event
+        fabClickListener();
+
+
+    }
+
+    public void fabClickListener() {
+        mFab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
@@ -88,16 +95,18 @@ public class MainActivity extends AppCompatActivity {
 
                                 Toast.makeText(MainActivity.this, "you clicked OK", Toast.LENGTH_SHORT).show();
                                 EditText rawQuery = (EditText) dialog.findViewById(R.id.query_symbol);
-                                EditText rawQuery2 = (EditText) dialog.findViewById(R.id.query_quantity);
+                                EditText quantity = (EditText) dialog.findViewById(R.id.query_quantity);
 
 
                                 String query = rawQuery.getText().toString().trim();
+                                String quant = quantity.getText().toString().trim();
 
                                 String URL = mNoQueryURL + query;
                                 mURI = URL;
                                 if (URL != null) {
-                                    if (networkInfo != null && networkInfo.isConnected()) {
-                                        mQuantity = rawQuery2.toString();
+                                    if (mNetworkInfo != null && mNetworkInfo.isConnected()) {
+                                        mQuantity = quant;
+                                        Log.i(TAG, "onClick: num " + mQuantity);
                                         Toast.makeText(MainActivity.this, "Network is active", Toast.LENGTH_SHORT).show();
                                         DownloadTask downloadTask = new DownloadTask();
                                         downloadTask.execute(URL);
@@ -120,34 +129,36 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private JSONArray downloadUrl3(String myUrl) throws IOException, JSONException {
-        InputStream inputStream = null;
-        try {
-            URL url = new URL(myUrl);
-            HttpURLConnection conn3 = (HttpURLConnection) url.openConnection();
-            conn3.setRequestMethod("GET");
-            conn3.connect();
-            inputStream = conn3.getInputStream();
-            String contentAsString = readIt(inputStream);
-            JSONArray processedJson = parseJson3(contentAsString);
-            return processedJson;
-        } finally {
-            if (inputStream != null) {
-                inputStream.close();
-            }
+    public void setInitialListView() {
+        Cursor cursor = DBHelper.getInstance(MainActivity.this).getAllCartItems();
+
+        if (cursor != null) {
+
+            mAdapter = new CursorAdapter(MainActivity.this, cursor, CursorAdapter.FLAG_REGISTER_CONTENT_OBSERVER) {
+                @Override
+                public View newView(Context context, Cursor cursor, ViewGroup parent) {
+                    return LayoutInflater.from(MainActivity.this).inflate(R.layout.list_view_items, parent, false);
+                }
+
+                @Override
+                public void bindView(View view, Context context, Cursor cursor) {
+                    TextView companyInfo = (TextView) view.findViewById(R.id.stock_text1);
+                    TextView quantity = (TextView) view.findViewById(R.id.stock_text2);
+
+                    companyInfo.setText((cursor.getString(cursor.getColumnIndex(DBHelper.COMP_NAME)))
+                            + ",  " + cursor.getString(cursor.getColumnIndex(DBHelper.EXC_NAME))
+                            // the following returned values are swapped but will fix soon
+                            + ",  " + cursor.getString(cursor.getColumnIndex(DBHelper.QUANITIY)));
+                    quantity.setText(cursor.getString(cursor.getColumnIndex(DBHelper.STOCK_SYMBOL)));
+                }
+            };
+            mListView.setAdapter(mAdapter);
         }
     }
 
     private JSONArray parseJson3(String contentAsString) throws JSONException {
         ArrayList<String> repoList = new ArrayList<>();
         JSONArray array = new JSONArray(contentAsString);
-//    for (int i = 0; i < array.length(); i++)
-//    {
-//      JSONObject repo = array.getJSONObject(i);
-//      String repoName = repo.getString("Exchange");
-//      String repoName2 = repo.getString("Name");
-//      String repoName3 = repo.getString("Symbol");
-//    }
         return array;
     }
 
@@ -169,15 +180,19 @@ public class MainActivity extends AppCompatActivity {
             try {
                 test = downloadUrl3(urls[0]);
 
+                // create array of objects
                 ArrayList<String> array = new ArrayList<>();
                 for (int i = 0; i < test.length(); i++) {
                     JSONObject repo = test.getJSONObject(i);
                     String repoName = repo.getString("Exchange");
                     String repoName2 = repo.getString("Name");
                     String repoName3 = repo.getString("Symbol");
+                    String quantity = mQuantity.toString();
+                    Log.i(TAG, "onClick: Async num" + mQuantity);
                     array.add(repoName);
                     array.add(repoName2);
                     array.add(repoName3);
+                    array.add(quantity);
                 }
                 return array;
             } catch (IOException e) {
@@ -190,45 +205,42 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(ArrayList<String> result) {
-            String result1 = result.get(0);
-            String result2 = result.get(1);
-            String result3 = result.get(2);
-//            mStock_text1.setText(result1);
-//            mStock_text2.setText(result2);
-//            mStock_text3.setText(result3);
-            StockContentProvider sTc = new StockContentProvider();
+            String result1 = result.get(1);
+            String result2 = result.get(2);
+            String result3 = result.get(3);
+            String result4 = result.get(4);
+
+            // inserting into the SQLITE Table
             ContentValues values = new ContentValues();
             values.put(StockContract.Stocks.COMP_NAME, result2);
             values.put(StockContract.Stocks.EXC_NAME, result1);
-            values.put(StockContract.Stocks.QUANITIY, mQuantity);
             values.put(StockContract.Stocks.STOCK_SYMBOL, result3);
+            values.put(StockContract.Stocks.QUANITIY, result4);
+            getContentResolver().insert(StockContract.Stocks.CONTENT_URI, values);
 
-            sTc.insert(mCONTENT_URI_Var, values);
-
-            mListView = (ListView) findViewById(R.id.listView);
-
+            // retrieve from table and swap adapter
             Cursor cursor = DBHelper.getInstance(MainActivity.this).getAllCartItems();
+            mAdapter.changeCursor(cursor);
+            mAdapter.notifyDataSetChanged();
+            mListView.setAdapter(mAdapter);
+        }
+    }
 
-            CursorAdapter cursorAdapter = new CursorAdapter(MainActivity.this, cursor, CursorAdapter.FLAG_REGISTER_CONTENT_OBSERVER) {
-                @Override
-                public View newView(Context context, Cursor cursor, ViewGroup parent) {
-                    Toast.makeText(MainActivity.this, "Success... inside adapter", Toast.LENGTH_SHORT).show();
-                    return LayoutInflater.from(MainActivity.this).inflate(R.layout.list_view_items, parent, false);
-                }
-
-                @Override
-                public void bindView(View view, Context context, Cursor cursor) {
-                    mStock_text1.setText(cursor.getString(cursor.getColumnIndex(DBHelper.COMP_NAME)));
-                    mStock_text2.setText(cursor.getString(cursor.getColumnIndex(DBHelper.EXC_NAME)));
-                    mStock_text3.setText(cursor.getString(cursor.getColumnIndex(DBHelper.QUANITIY)));
-                    mStock_text4.setText(cursor.getString(cursor.getColumnIndex(DBHelper.STOCK_SYMBOL)));
-
-                    Toast.makeText(MainActivity.this, "Success... set the view", Toast.LENGTH_SHORT).show();
-                }
-            };
-
-            mListView.setAdapter(cursorAdapter);
-
+    private JSONArray downloadUrl3(String myUrl) throws IOException, JSONException {
+        InputStream inputStream = null;
+        try {
+            URL url = new URL(myUrl);
+            HttpURLConnection conn3 = (HttpURLConnection) url.openConnection();
+            conn3.setRequestMethod("GET");
+            conn3.connect();
+            inputStream = conn3.getInputStream();
+            String contentAsString = readIt(inputStream);
+            JSONArray processedJson = parseJson3(contentAsString);
+            return processedJson;
+        } finally {
+            if (inputStream != null) {
+                inputStream.close();
+            }
         }
     }
 

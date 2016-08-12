@@ -87,7 +87,7 @@ public class DBHelper extends SQLiteOpenHelper {
     public long addItemsFromClick(ContentValues values) {
         SQLiteDatabase db = this.getWritableDatabase();
         long insertedRow = db.insert(TABLE_STOCK, null, values);
-//        db.close();
+        db.close();
         return insertedRow;
     }
 
@@ -101,7 +101,7 @@ public class DBHelper extends SQLiteOpenHelper {
         else
             rowsDeleted = db.delete(TABLE_STOCK,_ID+" = ?",new String[]{id});
 
-//        db.close();
+        db.close();
         return rowsDeleted;
     }
 
@@ -115,7 +115,7 @@ public class DBHelper extends SQLiteOpenHelper {
         else
             updatedRows = db.update(TABLE_STOCK,values,_ID+" = ?",new String[]{id});
 
-//        db.close();
+        db.close();
         return updatedRows;
     }
 
