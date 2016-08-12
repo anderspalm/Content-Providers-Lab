@@ -45,7 +45,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     public static final String mNoQueryURL = "http://dev.markitondemand.com/MODApis/Api/v2/Lookup/json?input=";
-    public static final Uri CONTENT_URI = StockContract.Stocks.CONTENT_URI;
+    public static Uri mCONTENT_URI_Var;
     ContentResolver mContentResolver;
     String mURI;
     private EditText mInputQuery;
@@ -59,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        mCONTENT_URI_Var = StockContract.Stocks.CONTENT_URI;
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         mStock_text1 = (TextView) findViewById(R.id.stock_text1);
@@ -97,7 +99,8 @@ public class MainActivity extends AppCompatActivity {
                                     if (networkInfo != null && networkInfo.isConnected()) {
                                         mQuantity = rawQuery2.toString();
                                         Toast.makeText(MainActivity.this, "Network is active", Toast.LENGTH_SHORT).show();
-                                        new DownloadTask().execute(URL);
+                                        DownloadTask downloadTask = new DownloadTask();
+                                        downloadTask.execute(URL);
                                     } else {
                                         Toast.makeText(MainActivity.this, "Check Network Connection", Toast.LENGTH_LONG).show();
                                     }
@@ -200,7 +203,8 @@ public class MainActivity extends AppCompatActivity {
             values.put(StockContract.Stocks.QUANITIY, mQuantity);
             values.put(StockContract.Stocks.STOCK_SYMBOL, result3);
 
-            sTc.insert(CONTENT_URI, values);
+            sTc.insert(mCONTENT_URI_Var, values);
+
             mListView = (ListView) findViewById(R.id.listView);
 
             Cursor cursor = DBHelper.getInstance(MainActivity.this).getAllCartItems();
